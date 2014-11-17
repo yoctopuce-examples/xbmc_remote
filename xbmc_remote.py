@@ -1,12 +1,11 @@
-import json
-import logging
+#!/usr/bin/python
 
 # noinspection PyUnresolvedReferences
+import json
 import requests
-from yoctopuce.yocto_anbutton import *
 from yoctopuce.yocto_api import *
 from yoctopuce.yocto_display import *
-from yoctopuce.yocto_colorled import *
+from yoctopuce.yocto_anbutton import *
 
 display_list = []
 
@@ -27,10 +26,11 @@ class SimpleXMBC(object):
             "method": method,
             "params": params,
             "jsonrpc": "2.0",
-            "id": 0,
+            "id": self._id,
         }
         response = requests.post(
             self._url, data=json.dumps(payload), headers=headers).json()
+        self._id += 1
         if 'error' in response:
             print(response['error'])
         return response
@@ -117,13 +117,13 @@ def an_button_callback(anbutton, value):
             print("send command for " + anbutton.get_friendlyName())
             funcid = anbutton.get_functionId()
             if funcid == 'anButton1':
-                xbmc_interface.up()
-            elif funcid == 'anButton2':
-                xbmc_interface.down()
-            elif funcid == 'anButton3':
                 xbmc_interface.left()
-            elif funcid == 'anButton4':
+            elif funcid == 'anButton2':
+                xbmc_interface.up()
+            elif funcid == 'anButton3':
                 xbmc_interface.right()
+            elif funcid == 'anButton4':
+                xbmc_interface.down()
             elif funcid == 'anButton5':
                 xbmc_interface.ok()
             elif funcid == 'anButton6':
@@ -163,20 +163,29 @@ def main():
         return -1
 
     try:
+        last_title = ''
+        last_progress = 0
+        plug_unplug_delay = 0
         while True:
             progress, title = xbmc_interface.get_info_to_display()
-            for display in display_list:
-                w = display.get_displayWidth()
-                h = display.get_displayHeight()
-                layer0 = display.get_displayLayer(0)
-                layer0.selectGrayPen(0)
-                layer0.drawBar(0, 0, w - 1, h - 1)
-                layer0.selectGrayPen(255)
-                layer0.drawText(w / 2, h / 2, YDisplayLayer.ALIGN.CENTER, title)
-                if progress > 0:
-                    layer0.drawBar(0, h - 1, int(progress * w / 100), h - 1)
-                display.swapLayerContent(0, 1)
-            YAPI.UpdateDeviceList()
+            if (progress != last_progress) or (last_title != title):
+                last_progress = progress
+                last_title = title
+                for display in display_list:
+                    w = display.get_displayWidth()
+                    h = display.get_displayHeight()
+                    layer0 = display.get_displayLayer(0)
+                    layer0.selectGrayPen(0)
+                    layer0.drawBar(0, 0, w - 1, h - 1)
+                    layer0.selectGrayPen(255)
+                    layer0.drawText(w / 2, h / 2, YDisplayLayer.ALIGN.CENTER, title)
+                    if progress > 0:
+                        layer0.drawBar(0, h - 1, int(progress * w / 100), h - 1)
+                    display.swapLayerContent(0, 1)
+            plug_unplug_delay -= 1
+            if plug_unplug_delay < 0:
+                YAPI.UpdateDeviceList()
+                plug_unplug_delay = 5
             YAPI.Sleep(1000)
 
     except KeyboardInterrupt:
